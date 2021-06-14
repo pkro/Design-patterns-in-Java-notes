@@ -1,0 +1,8 @@
+Tokyo
+33200000
+New york
+17800000
+Sao Paolo
+17700000
+Seoul
+12700000

@@ -4,7 +4,8 @@ Notes on udemy course of the same name by Dmitri Nesteruk
 
 ## Unrelated intellij notes
 
-Just typing `new Person("John")`, then `str-alt-v` to introduce local variable to turn it into `Person john = new Person("John")`
+- Just typing `new Person("John")`, then `str-alt-v` to introduce local variable to turn it into `Person john = new Person("John")`
+- typing an expression with .var at the end, e.g. `"fdf".var` creates whole `String varname = "fdf"`
 
 ## SOLID principles
 
@@ -252,3 +253,301 @@ The only solution for this is to make the factory an inner class:
 
 ## Prototype
 
+*A partially or fully initialized object that is copied (cloned)*
+
+Copying and customizing an existing object instead of instantiating.
+
+### Motivation:
+
+- reiterate existing design
+- complicated objects with complicated instantiation (e.g. by a builder), where only variations with some changes are required
+- Requires deep copy (clone)
+- Needs to be convenient
+
+### Don't use clone
+
+- Obviously just using `=` just assigns a refference to the same object, so this doesn't work
+- The interface `Cloneable` is NOT RECOMMENDED as it's an empty interface with no members / methods defined (but there is `clone()`? What does "no members defined" mean?) and more of a hint, and doesn't enforce a specific way of cloning (deep/shallow)
+
+### Copy constructors
+
+- create an object by passing an existing object of the same type to the constructor:
+
+    class Employee {
+      public String name;
+      public Address address;
+    
+      public Employee(String name, Address address) {
+        this.name = name;
+        this.address = address;
+      }
+    
+      public Employee(Employee other) {
+        name = other.name;
+        address = new Address(other.address);
+      }
+      // ...
+
+      Employee employee = new Employee("Peer", new Address("abcstr. 5", "offebach", "DE"));
+      Employee chris = new Employee(employee);
+
+- Problem: a copy constructor needs to be build for every type in the object to clone (as otherwise parts could be a shallow copy)
+
+
+### Copy through serialization
+
+- using apache commons, which does a deepcopy:
+
+      import org.apache.commons.lang3.SerializationUtils;
+      import java.io.Serializable;
+      
+      public class Main {
+        public static void main(String[] args) {
+          Foo foo = new Foo(42, "life");
+          Foo foo2 = SerializationUtils.roundtrip(foo);
+        }
+      }
+      
+      class Foo implements Serializable {
+        public int stuff;
+        public String whatever;
+      
+        public Foo(int stuff, String whatever) {
+          this.stuff = stuff;
+          this.whatever = whatever;
+        }
+      }
+
+- using a library that uses reflections (then implementing Serializable is not necessary)
+
+### Implement own deep copy functionality
+
+- what it says, see S5_04_exercise
+
+## Singleton
+
+*A component which is instantiated only once and resists to be instantiated more than once*
+
+- controversial if it's a good pattern or an anti-pattern
+
+Motivation: 
+
+- for some components it makes sense to have only one instance 
+  - Database repository
+  - Object factory
+- expensive constructor call
+- lazy instantiation and thread safety
+
+### Basic singleton with lazy instantiation
+
+    class BasicSingleton {
+      
+      // for immediate instantiation when the class is loaded by
+      // the runtime, we could also do
+      // private static final BasicSingleton instance = new BasicSingleton()
+      private static BasicSingleton instance;
+
+      // private constructor makes instantiation with "new" impossible
+      // outside the class
+      private BasicSingleton() {}
+    
+      public static BasicSingleton getInstance() {
+        // instantiate only when needed (lazy)
+        if(instance == null) {
+          instance = new BasicSingleton();
+        }
+        return instance;
+      }
+    }
+
+Problems:
+
+- private constructor can be (conciously) defeated with reflection
+- serialization (was) possible; if the Singleton implements `Serializable` interface, 2 instances could be created by writing and reading in an object via objectInputStream; can be resolve by overriding `readResolve`method:
+  > readResolve is used for replacing the object read from the stream. The only use I've ever seen for this is enforcing singletons; when an object is read, replace it with the singleton instance. This ensures that nobody can create another instance by serializing and deserializing the singleton. (https://stackoverflow.com/questions/1168348/java-serialization-readobject-vs-readresolve)
+- both are not really big problems as the first requires intention to misuse the class, the other is easily resolved by either NOT implementing `Serializable` or returning the instance in the `readResolve` method 
+
+### Static block singleton
+
+If the singleton constructor can throw an exception, the instantiation can be done in a static block:
+
+    class StaticBlockSingleton {
+      private static StaticBlockSingleton instance;
+    
+      // catches exception from constructor
+      // static blocks are executed on class load
+      static {
+        try {
+          instance = new StaticBlockSingleton();
+        } catch (Exception e) {
+          e.printStackTrace();
+        }
+      }
+    
+      private StaticBlockSingleton() throws IOException {
+        System.out.println("Singleton is initializing");
+        File.createTempFile(".", "."); // invalid, throws exception
+      }
+    }
+
+### Laziness and Thread Safety
+
+For lazy instantiation see first basic singleton code example.
+
+Thread safety (avoid that two threads check for null, succeed and both instantiate the singleton):
+
+Double-checked locking (**outdated**) (synchronizing on class:
+    
+    private static volatile DclSingleton instance;
+    public static DclSingleton getInstance() {
+        if (instance == null) {
+            synchronized (DclSingleton.class) {
+                if (instance == null) {
+                    instance = new DclSingleton();
+                }
+            }
+        }
+        return instance;
+    }
+
+Inner static singleton: guarantees thread safety 
+
+>This is called the initialization-on-demand holder idiom. In Java, encapsulating classes do not automatically initialize inner classes. So the inner class only gets initialized by getInstance(). Then again, class initialization is guaranteed to be sequential in Java, so the JVM implicitly renders it thread-safe. (Florian in Q&A section of that lesson)
+
+
+    class InnerStaticSingleton {
+      private InnerStaticSingleton() {}
+    
+      private static class Impl {
+        public static final InnerStaticSingleton INSTANCE = new InnerStaticSingleton();
+      }
+    
+      public InnerStaticSingleton getInstance() {
+        return Impl.INSTANCE;
+      }
+    }
+
+### Enum based singleton
+
+    enum EnumBasedSingleton {
+      INSTANCE;
+    
+      private int value;
+      // always private, no public constructor for enum
+      EnumBasedSingleton() {
+        value = 42;
+      }
+    
+      public int getValue() {
+        //...
+    }
+    
+    // main:
+    EnumBasedSingleton singleton = EnumBasedSingleton.INSTANCE;
+
+- thread safe
+- enums already have a private constructor (but can be implemented explicitely too)
+- can't inherit from enum
+- can theoretically be serialized but serialization doesn't preserve state (fields), only the instance name
+
+### Monostate
+
+Basically, make members static so they get shared among all instances of it:
+
+    class ChiefExecutiveOfficer {
+        private static String name; // only one field for all instances!
+    
+        public String getName() {
+            return name;
+        }
+    
+        public void setName(String name) {
+            // for explicity Class name instead of this
+            ChiefExecutiveOfficer.name = name;
+        }
+    }
+
+Problem: unintuitive, doesn't make communicate to user that setting a member in one object changes it for all others too
+
+### Multiton
+
+- key-value store with lazy loading
+- allows finite restricted set of instances
+- not thread safe by default (HashMap is not threadsafe)
+
+      // can be enum, string, int or whatever  
+      enum Subsystem {
+        PRIMARY,
+        AUXILIARY,
+        FALLBACK
+      }
+      
+      class Printer {
+        private Printer() {}
+      
+        private static HashMap<Subsystem, Printer> instances = new HashMap<>();
+      
+        public static Printer get(Subsystem ss) {
+          if(instances.containsKey(ss)) {
+            return instances.get(ss);
+          }
+          Printer instance = new Printer();
+          instances.put(ss, instance);
+          return instance;
+        }
+      }
+
+      // main
+      Printer primary = Printer.get(Subsystem.PRIMARY);
+      Printer primary2 = Printer.get(Subsystem.PRIMARY);
+      System.out.println(primary==primary2); // true
+
+
+### Testability issues
+
+- hard dependency - if the singleton initializes from a live DB, the tests test the current state of the DB, while we just want to test the singleton's (or other methods that use the singleton) functionality
+
+Solution: dependency injection; providing a dependency; dependency inversion
+
+Basically, using dummy data; see S6_07_testability_issues
+
+### Summary
+
+- Singletons are difficult to test
+- instead of directly using a singleton, consider depending on an abstraction (e.g. interface)
+
+
+## Adapter (structural)
+
+A construct which adapts an existing interface X to conform to the required interface Y
+
+- Determine the API you have and the API you need
+- Create a component which aggregates the adaptee
+- Intermediate representations can pile up: use caching and other optimizations
+- [Better Explanation maybe](https://www.geeksforgeeks.org/adapter-pattern/)
+
+
+## Bridge
+
+- A mechanism that decouples and interface (hierarchy) from an implementation (hierarchy)
+- Both *can* exist as hierarchies
+- Strong form of encapsulation
+
+Motivation: Bridge prevents a "Cartesian product" complexity explosion
+
+Examples: 
+
+- Base class ThreadScheduler
+  - can be preemptive or cooperative
+  - can run on windows and linux
+  - -> 4 different combinations
+- Shape
+  - shape: circle or square
+  - rendering: vector or raster
+  - -> VectorCircle, VectorSquare, RasterCircle, RasterSquare
+
+Pattern is basically an example of composition instead of inheritance. 
+
+Pass the desired renderer to the constructor of the shape (that's why there has to be an interface or abstract base class so you can have a `Renderer` type without specifying which one) and use it when rendering
+
+The only important thing here (see s8_03_exercise) is that the class that is passed into the other class has a common type -> interface. That's what "both can exist ans hierarchies" means
