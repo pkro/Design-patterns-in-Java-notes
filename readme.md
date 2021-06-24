@@ -5,7 +5,23 @@ Notes on udemy course of the same name by Dmitri Nesteruk
 ## Unrelated intellij notes
 
 - Just typing `new Person("John")`, then `str-alt-v` to introduce local variable to turn it into `Person john = new Person("John")`
-- typing an expression with .var at the end, e.g. `"fdf".var` creates whole `String varname = "fdf"`
+- same with alt-enter, "introduce local variable"
+- or typing an expression with .var at the end, e.g. `"fdf".var` creates whole `String varname = "fdf"`
+- writing a constructor, putting the cursor in the parameters and alt+enter -> bind constructor parameters to fields creates all fields and assigns them in the constructor
+
+## General java notes
+
+- [Map.merge](`https://www.nurkiewicz.com/2019/03/mapmerge-one-method-to-rule-them-all.html`) is VERY useful to update maps, e.g. add to an existing field, create a new field if it doesn't exist or even delete it if the value given is null:
+
+
+    Map<String, Integer> myWordCounterMap = new Map<>();
+    words.forEach(word ->
+            // or just Integer::sum instead of (prev, one) -> prev + one
+            myWordCounterMap.merge(word, 1, (prev, one) -> prev + one)
+    );
+
+- It's also thread safe with `ConcurrentHashMap`
+
 
 ## SOLID principles
 
@@ -178,7 +194,7 @@ See very clear and nice code in S3_03
 Motivations: make object creation easier (e.g. avoid constructor overloading hell) for objects not using a piece-wise builder pattern
 
 - By a separate function or functions (factory method) that are not bound by the restrictions of constructors, meaning they can have different names and parameters
-- Can exist in a separate class (Factors) - separation of concers
+- Can exist in a separate class (Factors) - separation of concerns
 - can create hierarchy of factories with Abstract Factory
 
 ### Factory method using static factory methods (simplest way)
@@ -550,4 +566,323 @@ Pattern is basically an example of composition instead of inheritance.
 
 Pass the desired renderer to the constructor of the shape (that's why there has to be an interface or abstract base class so you can have a `Renderer` type without specifying which one) and use it when rendering
 
-The only important thing here (see s8_03_exercise) is that the class that is passed into the other class has a common type -> interface. That's what "both can exist ans hierarchies" means
+The only important thing here (see s8_03_exercise) is that the class that is passed into the other class has a common type -> interface. That's what "both can exist as hierarchies" means.
+
+## Composite
+
+Treating individual and aggregate objects uniformly
+
+A mechanism for treating individual (scalar) objects and compositions of objects in a uniform manner
+Motivation:
+
+- objects use other objects fields / methods through inheritance and composition
+- Composition lets us make compound objects
+  - e.g. mathematical expression composed of simple expressions
+  - shape group made of different shapes
+- Composite design pattern is used to treat both single (scalar) and composite objects uniformly, meaning Foo and List<Foo> having common APIs 
+
+In essence, make a collection in an object that can contain objects of its own type, and make the methods in a way that they can apply to a singular instance as well as to their children. See the example in S9_01_composite.
+
+That means that you can also make a single element iterable by masking as a collection e.g. by implementing `Iterable` and overriding Iterator by returning an iterator of a set of `this`:
+
+    @Override
+    public Iterator<Neuron> iterator() {
+      return Collections.singleton(this).iterator();
+    }
+
+### Summary
+
+- Some composed and singular objects need similar / identical behaviors
+- Composite design pattern lets us treat both uniformly
+- Java supports container iteration using `Iterable<T>` interface
+- A single object can masquerade as a collection by returning a single element collections containing only this (see example code above)
+
+## Decorator
+
+Adding behaviour without altering the class itself
+
+Facilitates the addition of behaviours to *individual objects* without inheriting from them
+
+Motivation:
+
+- want to augment an object with additonal functionality
+- don't want to rewrite existing code (Open-Closed Principle)
+- want to keep new functionality separate (Separation Of Concerns)
+- Need to be able to interact with existing structures
+- Two options:
+  - Inherit from required object if possible (class is not final)
+  - Build a decorator, which simply references the decorated object and adds new functionality
+  
+Example: `String` is final; if we want to add a method (but still keep the other methods of String accessible), we would need to delegate all String method (in IntelliJ these can be generated, alt-v -> delegate methods).
+
+For String with it's rich API these would be dozens of methods.
+
+    class MagicString {
+        private String string;
+    
+        public MagicString(String string) {
+            this.string = string;
+        }
+
+        // this is the only method we want to add
+        public long getNumberOfVowels() {
+            return string.chars().mapToObj(c->(char) c).filter(c->"aeiou".contains(c.toString())).count();
+        }
+        
+        // have to do this otherwise we will just get a reference
+        @Override
+        public String toString() {
+            return string;
+        }
+        
+        // all the delegated String methods
+        public String toLowerCase(Locale locale) {
+          return string.toLowerCase(locale);
+        }
+    
+        public String toLowerCase() {
+            return string.toLowerCase();
+        }
+        // dozens more  
+     
+    }
+
+### Dynamic decorator composition:
+
+Basically the same as the example above combined with "program to an interface"; see S10_02 code.
+
+> The main advantage is runtime composition of required functionality without rigid dependencies. (Dmitri in lesson Q&A)
+
+### Static decorator composition:
+
+- determines types at compile time using generics <T extends...>
+
+### Adapter decorator
+
+### Summary
+
+- A decorator keeps the reference to the decorated objects
+- may or may not forward (delegate) calls; IDE can generate delegated members
+- static variation: `X<Y>Foo>>(/* unpleasant constructor args */)`; limited in java for [type erasure](https://www.baeldung.com/java-type-erasure) and that you can't inherit from type parameters (like `foo extends T`) in java
+
+## Facade
+
+Exposing several components through a single interface
+
+Provide a simple, easy to understand interface over a large and sophisticated body of code
+
+Motivation
+
+- balancing complexity and presentation / usability (easy API)
+- example: a house has many subsystems (electrical, sanitation, internal structure) that are not exposed to the tenant
+
+Example console:
+    
+    // main:
+    // low level usage of subsystems without facade:
+    Buffer buffer = new Buffer(30, 20);
+    Viewport viewport = new Viewport(buffer, 30, 20, 0, 0);
+    Console console = new Console(30, 20);
+    console.addViewport(viewport);
+    console.render();
+
+    // with facade method, single buffer, single viewport
+    Console console1 = Console.newConsole(30, 20);
+    console1.render();
+
+    // class Console
+    // the actual facade with common defaults
+    public static Console newConsole(int width, int height) {
+      Buffer buffer = new Buffer(width, height);
+      Viewport viewport = new Viewport(buffer, width, height, 0, 0);
+      Console console = new Console(width, height);
+      return console;
+    }
+  
+### Summary
+
+- build a facade to provide a simplified API over a set of classes
+- optionally expose internals through facade for "powerusers"
+- may allow users to escalate to more complex API if needed
+
+# Flyweight
+
+Space optimization
+
+A space optimization technique that lets us use less memory by externally storing the data associated with similar objects 
+
+Motivation:
+
+- Avoid redundancy when storing data
+- e.g. MMORPG
+  - plenty of users with same first / last name
+  - instead, store list of names and point to them
+  - basically like db normalization 
+- e.g. bold or italic text in console
+  - don't store format information for each character
+  - operate on ranges (e.g. line number, start / end etc)
+  - nice implementation of storing a range and its formatting in S12_02
+
+### Summary
+
+- store common data externally
+- specify an index or reference to the external data store
+- define metadata like ranges on homogenous collections and store data for these metadata objects instead of the individual objects in the collection itself
+- don't forget [String.intern()](https://www.baeldung.com/string/intern)
+
+## Proxy
+
+Interface for accessing a particular ressource
+
+A class that functions as an interface to a particular resource. That resource may be remote, expensive to construct or require logging or some other added funcitonality
+
+*Isn't that a bit like facade or decorator? -> see explanation of difference proxy/decorator below*
+
+Motivation:
+
+- calling foo.bar()
+- this assumes that foo is in the same process as bar()
+- what if, later on, it is desired to put all Foo related operations in a separate process?
+
+-> Proxy: gives the same interface, entirely different behaviour (communication proxy)
+
+Other types: logging, virtual, guarding...
+
+### Protection proxy
+
+Performs extra checks before calling the parent (proxy'd) class method. The CarProxy is still of supertype Car, so the code using it doesn't need to change assigned types and optionally use dependency injection.
+
+    class CarProxy extends Car {
+      public CarProxy(Driver driver) {
+        super(driver);
+      }
+    
+      @Override
+      public void drive() {
+        if (driver.age > 16) {
+          super.drive();__
+        } else {
+          System.out.println("Driver is too young to drive");
+        }
+      }
+    }
+
+### Property proxy
+
+Unusual, doesn't really fall into proxy category
+
+Replacing a field (member variable) with something that forces you to use getters / setters; not a proxy in the sense that in java, the `=` operator can't be overloaded, so the interface doesn not stay the same as it would with a "real" proxy. This is possible with the in-built proxy object in Javascript for example.
+
+    class Property<T> {
+        private T value;
+        public Property(T value) {
+            this.value = value;
+        }
+    
+        public T getValue() {
+            return value;
+        }
+    
+        public void setValue(T value) {
+            // do logging here
+            this.value = value;
+        }
+    
+        @Override
+        public boolean equals(Object o) {
+           //...
+        }
+    
+        @Override
+        public int hashCode() {
+            return Objects.hash(value);
+        }
+    }
+    
+    class Creature {
+        private Property<Integer> agility = new Property<>(10);
+    
+        public void setAgility(int value) { // we keep the normal int as parameter
+            // logging or whatever here
+            agility.setValue(value);
+        }
+    
+        public int getAgility() {
+            return agility.getValue();
+        }
+    }
+
+### Dynamic proxy for logging
+
+Constructed at runtime. Important pattern as it's used in many frameworks.
+
+Java provided `java.lang.reflect.InvocationHandler` interface for this which allows to intercept different methods using `invoke`
+
+See S13_03_proxy_dynamic_proxy for example, complicated
+
+### Proxy vs decorator:
+
+- Proxy provides an identical interface; decorator provides an enhanced interface (additional members etc)
+- decorator typically aggregates or has reference to what it is decorating; proxy doesn't have to
+- Proxy might not even be working with a materialized (existing) object (?)
+
+### Summary
+
+- a proxy has the same interface as the underlying object
+- to create a proxy, replicate the interface of an object
+- add relevant functionality to the redefined member functions
+- different proxies (communication, logging, caching etc.) have completely different behaviours
+
+
+## Chain of responsibility
+
+Sequence of handlers processing an event one after another
+
+A chain of components who all get a chance to process a command or query, optionally having default processing implementation and an ability to terminate the processing chain
+
+Example: button click handlers in html (button, parent element, window...)
+
+### Method chain
+
+Recursively calling the next handler after applying its own, clear example in S14_01_COR_method_chain.
+
+### Sidenote: Command Query Separation (CQS)
+
+- Command = asking for an action or change (e.g. set attack value to 2)
+- Query = asking for information (please give current attack value) without any sideeffects such as changing a value
+- CQS = having separate means of sending commands and queries
+
+### Broker Chain
+
+COR + Observer + mediator + memento
+
+No direct references between methods (modifiers in the example) necessary.  
+Complicated but understandable, see S14_02_COR_broker_chain
+
+**EXERCISE WORKS BUT DOESN'T REALLY USE COR**
+
+### Summary
+
+- COR can be implemented as a chain of references or a centralized construct
+- enlist objects in the chain, possibly controlling their order
+- Object removal from chain (e.g. in AutoCloseable close())
+
+
+## Command pattern
+
+An object which represents an instruction to perform a particular action. Contains all the information necessary for the action to be taken.
+
+- Ordinary Java statements are perishable:
+  - can't undo a field assignment
+  - can't directly serialize a sequence of actions (calls)
+- want an object that represents an operation 
+  - X should change its field Y to value Z
+  - X should do w()
+- Uses: GUI commands, multi-level undo/redo, macro recording and more
+
+### Summary
+
+- encapsulate all details of an operation, e.g. arguments passed to the actual method that performs the action and a variable indicating the success of the operation, in a separate object
+- define instruction for applying the command (eihter in the command itself or elsewhere)
+- optionally define instructions for undoing the command
+- can create composite commands (aka macros)
