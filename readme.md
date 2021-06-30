@@ -8,7 +8,7 @@ Notes on udemy course of the same name by Dmitri Nesteruk
 - same with alt-enter, "introduce local variable"
 - or typing an expression with .var at the end, e.g. `"fdf".var` creates whole `String varname = "fdf"`
 - writing a constructor, putting the cursor in the parameters and alt+enter -> bind constructor parameters to fields creates all fields and assigns them in the constructor
-
+- alt-enter on switch keyword -> generate missing cases
 ## General java notes
 
 - [Map.merge](`https://www.nurkiewicz.com/2019/03/mapmerge-one-method-to-rule-them-all.html`) is VERY useful to update maps, e.g. add to an existing field, create a new field if it doesn't exist or even delete it if the value given is null:
@@ -886,3 +886,295 @@ An object which represents an instruction to perform a particular action. Contai
 - define instruction for applying the command (eihter in the command itself or elsewhere)
 - optionally define instructions for undoing the command
 - can create composite commands (aka macros)
+
+## Interpreter
+
+A component that processes structured text data. It does so by turining it into seperate lexical tokens (*lexing*) and then interpreting sequences of said tokens (*parsing*)
+
+- Textual input needs to be processed, e.g. turned into OOP structures
+- Examples:
+  - programming language compilers, interpreters and IDEs
+  - HTML, XML etc
+  - numeric expressions (4+4/5)
+  - Regex
+
+- see S16_01_interpreter for lexer / parser implementation
+
+### ANTLR
+
+- Usually parsers aren't written by hand; one (most known) tool for this is [ANTLR](http://www.antlr.org)
+
+### Summary
+
+- barring simple cases, an interpreter acts in 2 stages:
+  - lexing turns text into a set of tokens:  
+  `3*(4+5)` -> `Lit[3] Star Lparen Lit[4] Plus Lit[5] Rparen`
+  - parsing parses tokens into meaningful constructs, building an abstract syntax tree:  
+  
+
+    MultiplicationExpression[
+      Integer[3],
+      AdditionExpression[
+        Integer[4], Integer[5]
+      ]
+    ]
+
+  - parsed data can then be traversed / interpreted
+
+  
+## Iterator
+
+A **helper** object that facilitates the traversal of a data structure.
+
+Motivation
+
+- Iteration (traversal) is a core functionality of data structures
+- iterator is a class that facilitates traversal
+  - keeps reference to current element
+  - knows how to move to a different element
+- Java has Iterator<T> and Iterable<T>
+  - Iterator<T> specifies the iterator API
+  - a class needs to be Iterable to support for (Foo foo: bar) loops
+  
+### Array backed properties
+
+Terminology: Property = field + getter + setter
+
+Basically, replacing single property fields with ONE array to make :
+
+Instead of:
+
+    class SimpleCreature {
+      private int strength, agility, intelligence;
+    
+      public int max() {
+        return Math.max(strength, Math.max(agility, intelligence));
+      }
+    
+      public int sum() {
+        return strength + agility + intelligence;
+      }
+      // ...
+    
+      public int getStrength() {
+        return strength;
+      }
+    
+      public void setStrength(int strength) {
+        this.strength = strength;
+      }
+      // ...
+
+
+WITH array backed properties:
+
+    class Creature implements Iterable<Integer> {
+      private int [] stats = new int[3];
+  
+      public int sum() {
+          return IntStream.of(stats).sum();
+      }
+  
+      public int max() {
+          return IntStream.of(stats).max().getAsInt();
+      }
+      // ...
+
+      public int getStrength() {
+          return stats[0];
+      }
+  
+      public void setStrength(int strength) {
+          this.stats[0] = strength;
+      }
+      //...
+
+Advantage: aggregate functions like sum, max don't need to be modified when adding properties.
+
+Undesired [magic numbers](https://en.wikipedia.org/wiki/Magic_number_(programming)), but this can be overcome by defining constants for easier access:
+
+    private final int STRENGTH = 0;
+    private final int AGILITY = 1;
+    private final int INTELLIGENCE = 2;
+    
+    private int [] stats = new int[3];
+    
+    public int getStrength() {
+        return stats[STRENGTH];
+    }
+    // ...
+
+Having properties as arrays makes it possible to (easily) implement the Iterable interface:
+
+    @Override
+    public Iterator<Integer> iterator() {
+      return IntStream.of(stats).iterator();
+    }
+  
+    @Override
+    public void forEach(Consumer<? super Integer> action) {
+      for (int x : stats) {
+        action.accept(x);
+      }
+    }
+  
+    @Override
+    public Spliterator<Integer> spliterator() {
+      return IntStream.of(stats).spliterator();
+    }
+
+In the context of the example making a "Creature" iterable is a bit unclear, unless a creature is regarded as just a collection of stats (and nothing else). Rightfuly pointed out by Gyorgy in the QA section
+
+### Summary
+
+- an iterator specifies how you can traverse an object
+- iterator can't be recursive (no coroutines) in Java
+- Iterator implements Iterator<T>, iterable object implements Iterable<T>
+
+## Mediator
+
+Facilitates communication between components
+
+A component that facilitates communication between other components without them necessarily being aware of each other of having direct (reference) access to each other.
+
+Motivation
+
+- components may go in and out of a system any time
+  - chat room participants (the chatroom is the mediator between participants)
+  - players in MMORPG
+- It makes no sense for them to have direct references to one another as they might go dead
+- Solution: have all refer to a central component that facilitates communication: Mediator
+
+### Reactive Extensions Event Broker
+
+For example using reactive extensions (io.reactivex) see code example. No idea.
+
+### Summary
+
+- create the mediator and have each object in the system refer to it (e.g. a list)
+- mediator engages in bidirecional communication with its connected components
+- mediator has functions that the components can call
+- componentes have functions the mediator can call
+- event processing (e.g. Rx) libraries make communication easier to implement
+
+## Memento
+
+Keep a memento of an objects state to return to that state later
+
+A token / handle representing the system state; lets us roll back to the state when the token was generated; may or may not directly expose state information. **Typically immutable**.
+
+Motivation
+
+- An object or system goes through changes (e.g. bank account)
+- different ways to navigate changes
+  - record every change (command pattern) and teach a command to undo itself; low memory footprint
+  - save snapshots of the system; higher memory footprint if object has many properties
+  
+### Basic memento
+
+    class BankAccount {
+      private int balance;
+      // ... constructor etc
+      public Memento deposit(int amount) {
+        balance += amount;
+        return new Memento(balance);
+      }
+    
+      public void restore(Memento m) {
+        this.balance = m.getBalance();
+      }
+
+    class Memento { // or BankAccountToken
+      private int balance; // immutable, no setter
+    
+      public Memento(int balance) {
+        this.balance = balance;
+      }
+    
+      public int getBalance() {
+       //..
+    
+    // Main
+    BankAccount bankAccount = new BankAccount(); // initializes to 0
+    Memento state1 = bankAccount.deposit(300);
+    Memento state2 = bankAccount.deposit(250);
+    System.out.println(bankAccount); // 550
+    bankAccount.restore(state1);
+    System.out.println(bankAccount); // 300
+
+### Memento for Interoperability between different languages
+
+- calling C++ functions from java is easy
+- Problem: can't instantiate C++ classes in Java or pass objects
+- Solution: Expose top level functions that create objects on the C++ side that return a (primitive) memento like an int as a representation that can be passed to a native C++ function that manipulates the object
+
+### Summary
+
+- Mementos are used to roll back states arbitrarily
+- A memento is a token / handle class with no functionality of its own
+- memento is not required to expose states to which it reverts the system; should be immutable in most cases
+- can be used, like command pattern, to undo / redo
+
+## Null object
+
+A behavioral design pattern with no behaviors; not present in GOF book
+
+A no-op Object that conforms to the required interface satisfying a dependency requirement of some other object.
+
+Useful in testing
+
+Motivation
+
+- When component A uses component B, it typically assumes that B is non-null
+  - you inject B, not some Option\<B\> type (?)
+  - you don't check for null on every call on the B object
+- There is no option of telling A *not* to use an instance of B (its use is hard-coded)
+- Thus, we build a no-op, non-functioning inheritor of B (or some interface that B implements) and pass it to A, so that e.g. calling methods on the empty B object doesn't cause any exceptions (like they would with `null`)
+
+### Null Object
+
+Just make a class implementing the required interface that has empty method bodies.
+
+### Dynamic null object
+
+- If there are multiple nullable objects, creating "empty" classes for each is tedious
+- Solution: construct an object at runtime that conforms to the right interface using the proxy pattern
+- Might not work for classes without constructor, e.g. classes that can only be instantiated by a factory
+- more computational intensive at runtime than; still useful for unittests and where performance doesn't matter 
+
+    
+    // method somewhere, e.g. Main class
+    @SuppressWarnings("unchecked")
+    public static <T> T noOp(Class<T> itf) {
+      // build fake object that conforms to given interface
+      return (T)
+          Proxy.newProxyInstance(
+              itf.getClassLoader(),
+              new Class<?>[] {itf},
+              (proxy, method, args) -> {
+                if (method.getReturnType().equals(Void.TYPE)) {
+                  return null;
+                } else {
+                  return method.getReturnType().getConstructor().newInstance();
+                }
+              });
+    }
+  
+  Usage:
+
+    // Dynamic null object using dynamic proxy (noOp method below)
+    Log noOp = noOp(Log.class);
+    BankAccount accountUsingNoOpProxy = new BankAccount(noOp);
+    accountUsingNoOpProxy.deposit(500);
+
+### Summary
+
+- implement required interface
+- rewrite methods with empty bodies (if non-void, return default value or minimally implement)
+- supply instance of null object in place of actual object
+- cross fingers
+
+## Observer
+
+Motivation:
+
