@@ -1176,5 +1176,259 @@ Just make a class implementing the required interface that has empty method bodi
 
 ## Observer
 
+An *observer* is an object that wishes to be informed about events happening in the system. The entity generating the events is an *observable*
+
 Motivation:
 
+- We need to be informed when:
+  - an objects field changes
+  - object does something
+  - some external event occurs
+- Typical pattern involves addXxxListener()
+- Java now has functional objects that can be stored in an array and fired when necessary
+  - `Supplier<T>`, [Consumer\<T\>](https://www.geeksforgeeks.org/java-8-consumer-interface-in-java-with-examples/), `Function<T>`
+
+In order to not having to inherit / implement observable / observer, we can encapsulate the idea of an event in an event class, which is a container of subscriptions, then go through each subscription and fire the event (?)
+
+PropertyChangedNotifications is more complicated with dependent properties like getCanVote() in the S21_02 example.
+
+For the exercise, see the instructor solution, my own solution was pretty much a mediator type solution.
+
+### Summary
+
+- Observer is an intrusive approach: an observible must provide an event to subscribe to
+- Sprecial care must be taken to prevent issues in multithreading
+- Rx uses Observer<T> / Obervable<T> (?)
+
+## State
+
+A pattern in which the objects beavior is determined by its state. An object transitions from one state to another (something needs to trigger a transition)
+
+A formalized construct wich manages state and transitions is called a *state machine*
+
+Motivation:
+
+- consider ordinary phoe
+- what you do with it depends of state of phone / line
+  - ringing or you want to make a call: pick  up
+  - must be off the hook to make a call
+  - when line is busy, you put it down
+- changes in state can be explicit or in response to event (observer pattern)
+
+### Classic GOF implementation
+
+- not used in practice anymore
+- every state is a class (OnState, OffState etc)
+- see S22_01_state_classic
+
+### Handmade State machine
+
+See S22_02 for classic state machine implementation
+
+### Summary
+
+- Given sufficient complexity, it pays to formally define possible states and events / triggers
+- Can define:
+  - state entry / exit behaviours
+  - action when a particular event causes a transition
+  - guard conditions enabling / disabling a transition
+  - default action when no transitions are found for an event
+
+## Strategy (also known as *policy* in C++)
+
+System behaviour partially specified at runtime.
+
+Enables the exact behavior of a system to be selected either at runtime (dynamic) or compile time (static).
+
+Motivation
+
+- Many algorithms can be decomposed into higher and lower level parts (general and specific parts?)
+- Making tea can be decomposed into
+  - making hot beverage: boil water, pour into cup (higher level = general part)
+  - put teabag into water (tea specific, lower level = specific part)
+- The high-level algorithm can be reused for making coffee or hot chocolate
+  - supported by beverage-specific *strategies*
+
+### Summary
+
+- Defione an algorithm at high level
+- Define interface each strateg should follow
+- provide for dynamic or static composition of strategy in the overall algorithm
+
+## Template method
+
+High level blueprint for an algorithm to be completed by inheritors
+
+Allows us to define the skeleton of the algorithm, with concrete implementations defined in subclasses.
+
+*In Java, this is just the concept of the abstract base class?*
+
+Motivation
+
+- Algorithms can be decomposed into common parts + specifics
+- Strategy pattern does this through composition
+  - High level algo uses an interface
+  - concrete implementations implement the interface
+- Template method does the same thing through inheritance
+  - overall algorithm makes use of abstract member
+  - Inheritors override the abstract members
+  - Parent template method invoked
+  
+Example:
+
+    abstract class Game {
+      protected final int numberOfPlayers;
+      protected int currentPlayer;
+    
+      public Game(int numberOfPlayer) {
+        this.numberOfPlayers = numberOfPlayer;
+      }
+    
+      public void run() {
+        // instead of strategy.start(), strategy.haveWinner() etc we use 
+        // abstract methods to be implemented by the concrete class 
+        start();
+        while (!haveWinner()) {
+          takeTurn();
+          System.out.println("player " + getWinningPlayer() + " wins");
+        }
+      }
+    
+      protected abstract void takeTurn();
+      protected abstract boolean haveWinner();
+      protected abstract void start();
+      protected abstract int getWinningPlayer();
+    }
+    
+    class Chess extends Game {
+      private int maxTurns = 10;
+      private int turn = 1;
+    
+      public Chess() {
+        super(2);
+      }
+    
+      @Override
+      protected void takeTurn() {
+        System.out.println("Turn " + (turn++) + " taken by player " + currentPlayer);
+      }
+    
+      @Override
+      protected boolean haveWinner() {
+        return turn == maxTurns;
+      }
+      // ...
+    }
+
+## Visitor
+
+Allows adding extra behaviors to entire class hierarchies
+
+A pattern where a component (visitor) is allowed to traverse the entire inheritance hierarchy. Implemented by propagating a single `visit()` method throughout the entire hierarchy.
+
+Motivation
+
+- Need to define a new operation on an entire class hierarchy without modifying all (sub-) classes, e.g. making a document model printable (outputable) to different formats like HTML / Markdown 
+- need access to the non-common aspects of classes in the hierarchy (?)
+- create an external component to handle rendering (but avoid type checks)
+
+### Intrusive visitor
+
+We just implement the method we need in the abstract base class and override them in the subclasses, breaking both open-closed (classes should be closed to modification) and separation of concerns (a data class should not be responsible for print output) principle.
+
+    // expression like 1+2
+    abstract class Expression {
+      public abstract void print(StringBuilder sb);
+    }
+    
+    class DoubleExpression extends Expression {
+      private double value;
+    
+      public DoubleExpression(double value) {
+        this.value = value;
+      }
+    
+      @Override
+      public void print(StringBuilder sb) {
+        sb.append("" + value);
+      }
+    }
+    
+    class AdditionExpression extends Expression {
+      private Expression left, right;
+    
+      public AdditionExpression(Expression left, Expression right) {
+        this.left = left;
+        this.right = right;
+      }
+    
+      @Override
+      public void print(StringBuilder sb) {
+        sb.append("(");
+        left.print(sb);
+        sb.append("+");
+        right.print(sb);
+        sb.append(")");
+      }
+    }
+
+### Reflective visitor
+
+Put desired functionality in a separate class.
+
+    class ExpressionPrinter {
+      public static void print(Expression e, StringBuilder sb) {
+        if (e.getClass() == DoubleExpression.class) {
+          sb.append(((DoubleExpression) e).value);
+        } else if (e.getClass() == AdditionExpression.class) {
+          AdditionExpression ae = (AdditionExpression) e;
+          sb.append("(");
+          print(ae.left, sb);
+          sb.append("+");
+          print(ae.right, sb);
+          sb.append(")");
+        }
+      }
+    }
+    
+    // expression like 1+2
+    abstract class Expression {}
+    
+    class DoubleExpression extends Expression {
+      public double value;
+    
+      public DoubleExpression(double value) {
+        this.value = value;
+      }
+      // nothing special needs to be implemented here for printing 
+    }
+    
+    class AdditionExpression extends Expression { 
+    // ...
+
+Issues: 
+
+- code is slow due to reflection / type checks / casts
+- no check if every case is implemented (it prints fine if a class type isn't in the if/else tree, but elements are skipped)
+
+Solution (with small intrusion):
+
+### Classic ("real world use") visitor (double dispatch)
+
+- accept method (and its overloads) has to be implemented in the class implementing te visitor
+- just the accept() method has to be implemented in all subclasses to be able to add multiple functionalities
+- see S25_03_classic_visitor_double_dispatch
+
+Issues: cyclic dependencies (visit / accept)
+
+### Acyclic visitor
+
+- basically interface segregation principle
+- I don't understand, too early in the morning
+
+### summary
+
+- Proagate an `accept(Visitor v)` method throughout the entire hierarchy
+- create a visitro with `visit(Foo=), visit(Bar), ...` for each element in the hierarchy
+- Each `accept()` simply calls `visitor.visit(this)`
+- Acyclyic visitor allows greater flexibility at cost of performance
