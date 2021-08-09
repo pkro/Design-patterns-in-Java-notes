@@ -48,6 +48,8 @@ used in example: [business rules can be recombined by chaining the business rule
 
 You should be able to substitute a base type for a subtype, meaning a derived (sub-)class should be substitutable by a base class.
 
+The Liskov substitution principle means that child classes should maintain the behavior of their parent classes.
+
 Example in code: Square inherits from Rectangle, but Square's setters set both width and height in the overridden
 setwidth and setheight methods, which can lead to unexpected results
 
